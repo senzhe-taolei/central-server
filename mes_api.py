@@ -8,7 +8,7 @@ from db_operation import MySqlHelper
 app = FastAPI()
 
 
-# mes货盒回库
+# mes下发生产计划
 @app.post("/mes/production_plan", status_code=status.HTTP_200_OK)
 def production_plan(data=Body()):
     db = MySqlHelper()
@@ -44,7 +44,7 @@ def production_plan(data=Body()):
                 {"name": "A21730NXX.jpg",
                  "path": "HTTP://192.168.47.9/FppData/HandWorkFile/PMO21031201371-B/A21730NXX.jpg"}]}"""
         come_from = "MES"
-        go_to = "WMS"
+        go_to = "CC"
         action = "MES下发生产计划"
         request_log = json.dumps(data)
         insert_data_sql = "insert into api_log(come_from, go_to, action, request_log, create_time) " \

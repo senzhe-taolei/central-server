@@ -2,9 +2,17 @@ import pymysql
 
 
 class MySqlHelper(object):
-    def __init__(self):
-        self.db = pymysql.connect(host="localhost", user="root", password="senzheuser", database="if_central_control",
-                                  charset="utf8")
+    def __init__(self, host="localhost"):
+        if host == "localhost":
+            ip = "localhost"
+            password = "senzheuser"
+            database = "if_central_control"
+        else:
+            ip = "192.168.10.137"
+            password = "JinQiLin!@#$%^123456"
+            database="if_factory"
+        self.db = pymysql.connect(host = ip, user = "root", password = password, database = database,
+                                  charset = "utf8")
         # self.db = pymysql.connect(host="192.168.10.129", user="root", password="JinQiLin!@#$%^123456",
         #                           database="if_central_control", charset="utf8")
         self.cursor = self.db.cursor()

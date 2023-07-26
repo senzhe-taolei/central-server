@@ -1,6 +1,7 @@
 import json
 
 import redis_read_and_write
+from config_info import reya_device_list as reya_device_list
 
 
 def production_plan(data: dict, db):
@@ -37,7 +38,7 @@ def production_plan(data: dict, db):
     try:
         production_plan_id = data.get("production_plan_id")
         work_station = data.get("work_station")
-        if work_station.startswith("ZN-122"):
+        if work_station in reya_device_list:
             material_name = data.get("material").get("material_name")
             material_plan_id = data.get("material").get("plan_id")
             mj_name = data.get("material").get("mj_name")
@@ -70,6 +71,12 @@ def production_plan(data: dict, db):
                 insert_list = [production_plan_id, work_station, material_name, material_plan_id, mj_name, tl_name,
                                cavity_number, zhuliao_name, fuliao_name, plan_qty, production_parameter, drawing]
                 db.insert_or_update_db_data(insert_data_sql, insert_list)
+                update_data_sql = f"update reya_production_material set standard_mj_name = %s, " \
+                                  f"standard_tl_name = %s, standard_zhuliao_name = %s, standard_fuliao_name = %s, " \
+                                  f"standard_gangbei_name = %s, standard_gangbei_plan_id = %s where device_name = %s"
+                update_list = [mj_name, tl_name, zhuliao_name, fuliao_name, material_name, material_plan_id,
+                               work_station]
+                db.insert_or_update_db_data(update_data_sql, update_list)
                 # 写入对应设备redis的生产计划字典
                 redis_read_and_write.redis_hmset(work_station, f"production_plan:{production_plan_id}", production_dict)
                 # 写入对应设备redis的设备生产计划字典
@@ -77,9 +84,10 @@ def production_plan(data: dict, db):
                 redis_read_and_write.redis_hmset(work_station, f"device_production_plan:{work_station}", device_dict)
                 mes_date = {"result": "success"}
                 return {"code": 200, "data": mes_date}
-            elif not redis_read_and_write.redis_hget(work_station, f"device_production_plan:{work_station}", "plan_id") \
+            elif not redis_read_and_write.redis_hget(work_station,
+                                                     f"device_production_plan:{work_station}", "plan_id") \
                     or redis_read_and_write.redis_hget(work_station, f"device_production_plan:{work_station}",
-                                                           "plan_id") == "0":
+                                                       "plan_id") == "0":
                 redis_read_and_write.redis_hmset(work_station, f"production_plan:{production_plan_id}", production_dict)
                 device_dict = {"if_working": "wait", "plan_id": production_plan_id}
                 redis_read_and_write.redis_hmset(work_station, f"device_production_plan:{work_station}", device_dict)
