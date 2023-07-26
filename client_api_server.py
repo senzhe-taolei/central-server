@@ -11,8 +11,8 @@ def reya_production_begin(work_station: str, db):
             if_working = r.redis_hget(work_station, f"device_production_plan:{work_station}", "if_working")
             if if_working == "wait":
                 select_data_sql = f"select production_plan_id_now, mj_if_on, tl_if_on, on_device_gangbei_box_list, " \
-                                  f"on_device_zhuliao_box, on_device_fuliao_box, on_device_goods_qty, finish_goods_qty " \
-                                  f"from reya_production_material where device_name = '{work_station}'"
+                                  f"on_device_zhuliao_box, on_device_fuliao_box, on_device_goods_qty, " \
+                                  f"finish_goods_qty from reya_production_material where device_name = '{work_station}'"
                 get_data = db.get_db_data(select_data_sql)
                 if get_data:
                     production_plan_id = get_data[0][0]
@@ -68,8 +68,8 @@ def reya_production_begin(work_station: str, db):
                         cc_data = cc_json.encode("utf-8")
                         result = res.request(url, data=cc_data)
                         if result.get("code") == 200:
-                            ui_date = {"result": "success"}
-                            return {"code": 200, "data": ui_date}
+                            client_data = {"result": "success"}
+                            return {"code": 200, "data": client_data}
                         else:
                             error = result.get("msg")
                             pda_msg = f"任务下发设备返回报错：{error}"
@@ -85,3 +85,175 @@ def reya_production_begin(work_station: str, db):
     except Exception as e:
         return {"code": 500, "msg": f"api_server脚本报错:{str(e)}"}
 
+
+def logistics_monitoring(production_plan_id: str, db, db_137):
+    try:
+        select_data_sql = f"select material_name, material_plan_id from reya_production_material " \
+                          f"where production_plan_id = '{production_plan_id}'"
+        get_data = db.get_db_data(select_data_sql)
+        if get_data:
+            material_name = get_data[0][0]
+            material_plan_id = get_data[0][1]
+            select_data_sql = f"select box_rfid, goods_qty, out_lk_task_id from wms_goods_in_box " \
+                              f"where material_name = '{material_name}' and plan_id = '{material_plan_id} " \
+                              f"order by id desc"
+            get_data = db_137.get_db_data(select_data_sql)
+            if get_data:
+                box_rfid_list = []
+                logistics_monitoring_doct = {}
+                for i in get_data:
+                    box_rfid = i[0]
+                    goods_qty = i[1]
+                    out_lk_task_id = i[2]
+                    if not goods_qty:
+                        goods_qty = 0
+                    else:
+                        pass
+                    if box_rfid not in box_rfid_list:
+                        box_rfid_list.append(box_rfid)
+                        if not out_lk_task_id:
+                            logistics_monitoring_doct[box_rfid] = {"goods_qty": goods_qty, "task_number": "00000",
+                                                                   "outing": 0, "on_line": 0, "line_end": 0,
+                                                                   "on_device": 0}
+                        else:
+                            select_data_sql = f"select wcs_task_number, task_state from wms_task " \
+                                              f"where id = {out_lk_task_id}"
+                            get_data = db_137.get_db_data(select_data_sql)
+                            if get_data:
+                                wcs_task_number = get_data[0][0]
+                                task_state = get_data[0][1]
+                                if task_state == "user_cancel" or task_state == "task_cancel":
+                                    outing = 0
+                                    on_line = 0
+                                    line_end = 0
+                                    on_device = 0
+                                elif task_state == "on_srm":
+                                    outing = 1
+                                    on_line = 0
+                                    line_end = 0
+                                    on_device = 0
+                                elif task_state == "on_line":
+                                    outing = 1
+                                    on_line = 1
+                                    line_end = 0
+                                    on_device = 0
+                                elif task_state == "line_task_end":
+                                    outing = 1
+                                    on_line = 1
+                                    line_end = 1
+                                    on_device = 0
+                                elif task_state == "task_end":
+                                    outing = 1
+                                    on_line = 1
+                                    line_end = 1
+                                    on_device = 1
+                                else:
+                                    wcs_task_number = "88888"
+                                    outing = 0
+                                    on_line = 0
+                                    line_end = 0
+                                    on_device = 0
+                                logistics_monitoring_doct[box_rfid] = {"goods_qty": goods_qty,
+                                                                       "task_number": wcs_task_number,
+                                                                       "outing": outing, "on_line": on_line,
+                                                                       "line_end": line_end,
+                                                                       "on_device": on_device}
+                            else:
+                                logistics_monitoring_doct[box_rfid] = {"goods_qty": goods_qty, "task_number": "99999",
+                                                                       "outing": 0, "on_line": 0, "line_end": 0,
+                                                                       "on_device": 0}
+                    else:
+                        pass
+                client_data = logistics_monitoring_doct
+                return {"code": 200, "data": client_data}
+
+            else:
+                return {"code": 500,
+                        "msg": f"生产计划'{production_plan_id}'可用物料为空"}
+        else:
+            return {"code": 500,
+                    "msg": f"生产计划'{production_plan_id}'查询物料信息失败"}
+    except Exception as e:
+        return {"code": 500, "msg": f"api_server脚本报错:{str(e)}"}
+
+
+def reya_get_gangbei_out_lk(work_station: str, production_plan_id: str, box_qty: int, db, db_137):
+    try:
+        select_data_sql = f"select material_name, material_plan_id from reya_production_material " \
+                          f"where production_plan_id = '{production_plan_id}'"
+        get_data = db.get_db_data(select_data_sql)
+        if get_data:
+            material_name = get_data[0][0]
+            material_plan_id = get_data[0][1]
+            select_data_sql = f"select box_rfid, location_name from wms_goods_box " \
+                              f"where material_name = '{material_name}' and plan_id = '{material_plan_id} " \
+                              f"and box_type = 21 and box_location = 'in_lk' limit {box_qty}"
+            get_data = db_137.get_db_data(select_data_sql)
+            if get_data:
+                box_rfid_list = []
+                box_rfid_dict = {}
+                for i in get_data:
+                    box_rfid = i[0]
+                    location_name = i[1]
+                    if box_rfid not in box_rfid_list:
+                        box_rfid_list.append(box_rfid)
+                        box_rfid_dict[location_name] = box_rfid
+                    else:
+                        pass
+                res = ApiRequest()
+                url = f"http://192.168.10.137:8080/cc/reya_get_material_out_lk"
+                cc_dict = {"work_station": work_station, "box_rfid_dict": box_rfid_dict}
+                cc_json = json.dumps(cc_dict, ensure_ascii=False)
+                cc_data = cc_json.encode("utf-8")
+                result = res.request(url, data=cc_data)
+                if result.get("code") == 200:
+                    client_data = {"result": "success"}
+                    return {"code": 200, "data": client_data}
+                else:
+                    error = result.get("msg")
+                    pda_msg = f"叫料任务下发返回报错：{error}"
+                    return {"code": 500, "msg": pda_msg}
+            else:
+                return {"code": 500,
+                        "msg": f"生产计划'{production_plan_id}'所有在库钢背已全部出库"}
+        else:
+            return {"code": 500,
+                    "msg": f"生产计划'{production_plan_id}'查询物料信息失败"}
+    except Exception as e:
+        return {"code": 500, "msg": f"api_server脚本报错:{str(e)}"}
+
+
+def reya_get_fenliao_out_lk(work_station: str, production_plan_id: str, fenliao_type: str, db_137):
+    try:
+        if fenliao_type == "zhuliao":
+            material_name = r.redis_hget(work_station, f"production_plan:{production_plan_id}", "主料料号")
+        elif fenliao_type == "fuliao":
+            material_name = r.redis_hget(work_station, f"production_plan:{production_plan_id}", "辅料料号")
+        else:
+            return {"code": 500, "msg": f"生产计划'{production_plan_id}'混合料叫料粉料类型'{fenliao_type}'不合法"}
+        select_data_sql = f"select box_rfid, location_name from wms_goods_box " \
+                          f"where material_name = '{material_name}' and box_type = 31 and box_location = 'in_lk' " \
+                          f"order by create_time limit 1"
+        get_data = db_137.get_db_data(select_data_sql)
+        if get_data:
+            box_rfid = get_data[0][0]
+            location_name = get_data[0][1]
+            box_rfid_dict = {location_name: box_rfid}
+            res = ApiRequest()
+            url = f"http://192.168.10.137:8080/cc/reya_get_material_out_lk"
+            cc_dict = {"work_station": work_station, "box_rfid_dict": box_rfid_dict}
+            cc_json = json.dumps(cc_dict, ensure_ascii=False)
+            cc_data = cc_json.encode("utf-8")
+            result = res.request(url, data=cc_data)
+            if result.get("code") == 200:
+                client_data = {"result": "success"}
+                return {"code": 200, "data": client_data}
+            else:
+                error = result.get("msg")
+                pda_msg = f"叫料任务下发返回报错：{error}"
+                return {"code": 500, "msg": pda_msg}
+        else:
+            return {"code": 500,
+                    "msg": f"生产计划'{production_plan_id}'所有在库主料或辅料已全部出库"}
+    except Exception as e:
+        return {"code": 500, "msg": f"api_server脚本报错:{str(e)}"}

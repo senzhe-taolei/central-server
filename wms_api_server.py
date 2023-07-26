@@ -3,12 +3,12 @@ import json
 from config_info import reya_device_list as reya_device_list
 
 
-def material_if_can_on_reya(box_rfid: str, box_location: str, db, db137):
+def material_if_can_on_reya(box_rfid: str, box_location: str, db, db_137):
     try:
         if box_location in reya_device_list:
             select_data_sql = f"select box_type, material_name, plan_id from wms_goods_box " \
                               f"where box_rfid = '{box_rfid}'"
-            get_data = db137.get_db_data(select_data_sql)
+            get_data = db_137.get_db_data(select_data_sql)
             if not get_data:
                 return {"code": 500, "msg": f"货盒'{box_rfid}'物料信息查询失败"}
             else:
@@ -110,10 +110,10 @@ def mujv_if_can_on_reya(material_name: str, material_type: str, location_name: s
         return {"code": 500, "msg": f"api_server脚本报错:{str(e)}"}
 
 
-def material_on_reya(box_rfid: str, box_location, db, db137):
+def material_on_reya(box_rfid: str, box_location, db, db_137):
     try:
         get_data_sql = f"select box_type, material_name, goods_qty from wms_goods_box where box_rfid = '{box_rfid}'"
-        get_data = db137.get_db_data(get_data_sql)
+        get_data = db_137.get_db_data(get_data_sql)
         if get_data:
             box_type = int(get_data[0][0])
             material_name = get_data[0][1]
