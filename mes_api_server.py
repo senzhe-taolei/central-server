@@ -59,9 +59,11 @@ def production_plan(data: dict, db):
             select_data_sql = f"select id from reya_production_plan where production_plan_id = '{production_plan_id}'"
             get_data = db.get_db_data(select_data_sql)
             # 如果设备正在生产中，任务不可下发
-            if redis_read_and_write.redis_hget(work_station, f"device_production_plan:{work_station}",
-                                               "if_working") == "working":
-                return {"code": 500, "msg": f"生产计划'{production_plan_id}'下发目标'{work_station}'正在生产中"}
+            device_plan_id = redis_read_and_write.redis_hget("server", f"device_production_plan:{work_station}",
+                                               "plan_id")
+            if device_plan_id != "00000":
+                return {"code": 500, "msg": f"生产计划'{production_plan_id}'下发目标'{work_station}'"
+                                            f"生产计划'{device_plan_id}'未完结"}
             # 如果任务信息不在表格reya_production_plan中，插入
             elif not get_data:
                 insert_data_sql = f"insert into reya_production_plan set production_plan_id = %s, work_station = %s, " \
@@ -82,6 +84,8 @@ def production_plan(data: dict, db):
                 # 写入对应设备redis的设备生产计划字典
                 device_dict = {"if_working": "wait", "plan_id": production_plan_id}
                 redis_read_and_write.redis_hmset(work_station, f"device_production_plan:{work_station}", device_dict)
+                # 写入本地redis的设备生产计划字典
+                redis_read_and_write.redis_hmset("server", f"device_production_plan:{work_station}", device_dict)
                 mes_date = {"result": "success"}
                 return {"code": 200, "data": mes_date}
             elif not redis_read_and_write.redis_hget(work_station,
