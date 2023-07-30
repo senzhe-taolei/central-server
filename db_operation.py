@@ -5,14 +5,14 @@ class MySqlHelper(object):
     def __init__(self, host="localhost"):
         if host == "localhost":
             ip = "localhost"
-            password = "senzheuser"
+            password = "jinqilinuser"
             database = "if_central_control"
         else:
             ip = "192.168.10.137"
             password = "JinQiLin!@#$%^123456"
-            database="if_factory"
-        self.db = pymysql.connect(host = ip, user = "root", password = password, database = database,
-                                  charset = "utf8")
+            database = "if_factory"
+        self.db = pymysql.connect(host=ip, user="root", password=password, database=database,
+                                  charset="utf8")
         # self.db = pymysql.connect(host="192.168.10.129", user="root", password="JinQiLin!@#$%^123456",
         #                           database="if_central_control", charset="utf8")
         self.cursor = self.db.cursor()
@@ -41,7 +41,6 @@ class MySqlHelper(object):
         data = self.cursor.fetchall()
         return data
 
-
     # 获取查询结果的字段名和值的字典
     def get_db_data_dict(self, get_data_sql):
         self.cursor.execute(get_data_sql)
@@ -54,7 +53,6 @@ class MySqlHelper(object):
         for k, v in enumerate(data[0]):
             data_dict[field_list[k]] = v
         return data_dict
-
 
     def write_log_no_task_number(self, log_name: str, log: str):
         insert_data_sql = "insert into sys_log(log_name, create_time, log ) values (%s, now(3), %s)"
