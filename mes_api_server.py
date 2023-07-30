@@ -60,7 +60,7 @@ def production_plan(data: dict, db):
             get_data = db.get_db_data(select_data_sql)
             # 如果设备正在生产中，任务不可下发
             device_plan_id = redis_read_and_write.redis_hget("server", f"device_production_plan:{work_station}",
-                                               "plan_id")
+                                                             "plan_id")
             if device_plan_id != "00000":
                 return {"code": 500, "msg": f"生产计划'{production_plan_id}'下发目标'{work_station}'"
                                             f"生产计划'{device_plan_id}'未完结"}
